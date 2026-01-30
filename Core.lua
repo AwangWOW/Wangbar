@@ -170,9 +170,11 @@ ToggleDebugPanel = function()
     CreateEditModePanel()
     f:Show()
     f:SetAlpha(1)
-    energyBorder:Show()
-    energyBorder:SetAlpha(1)
-    energyBar:Show()
+    if SnapComboPointsDB.energyEnabled ~= false then
+      energyBorder:Show()
+      energyBorder:SetAlpha(1)
+      energyBar:Show()
+    end
     Print("Panel shown (debug).")
   else
     if C_EditMode and C_EditMode.ExitEditMode then
@@ -423,12 +425,25 @@ ApplyFrameStyle = function()
   f.countText:SetShadowColor(unpack(SnapComboPointsDB.countShadowColor))
   f.countText:SetShadowOffset(SnapComboPointsDB.countShadowOffset, -SnapComboPointsDB.countShadowOffset)
 
+  for i = 1, #bars do
+    if bars[i] and bars[i].pip then
+      bars[i].pip:SetBackdropColor(unpack(SnapComboPointsDB.pipBgColor))
+      bars[i].pip:SetBackdropBorderColor(unpack(SnapComboPointsDB.pipBorderColor))
+      if bars[i].shadow then
+        bars[i].shadow:SetColorTexture(unpack(SnapComboPointsDB.pipShadowColor))
+        bars[i].shadow:ClearAllPoints()
+        bars[i].shadow:SetPoint("TOPLEFT", bars[i].pip, "TOPLEFT", -SnapComboPointsDB.pipShadowOffset, SnapComboPointsDB.pipShadowOffset)
+        bars[i].shadow:SetPoint("BOTTOMRIGHT", bars[i].pip, "BOTTOMRIGHT", SnapComboPointsDB.pipShadowOffset, -SnapComboPointsDB.pipShadowOffset)
+      end
+    end
+  end
+
   energyBorder:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8x8",
     edgeFile = "Interface\\Buttons\\WHITE8x8",
     edgeSize = SnapComboPointsDB.energyBorderSize or 1,
   })
-  energyBorder:SetBackdropColor(unpack(SnapComboPointsDB.pipBgColor))
+  energyBorder:SetBackdropColor(unpack(SnapComboPointsDB.energyBg or SnapComboPointsDB.pipBgColor))
   energyBorder:SetBackdropBorderColor(unpack(SnapComboPointsDB.energyBorder))
   energyBar:SetStatusBarTexture(SnapComboPointsDB.energyTexture)
   energyBar:SetFrameLevel(energyBorder:GetFrameLevel() + 1)
@@ -445,7 +460,8 @@ ApplyFrameStyle = function()
   energyBar.countText:SetDrawLayer("OVERLAY", 7)
   energyBar.countText:SetAlpha(1)
   energyBar.countText:SetFont(SnapComboPointsDB.energyCountFont, SnapComboPointsDB.energyCountFontSize, SnapComboPointsDB.energyCountFontOutline)
-  energyBar.countText:SetTextColor(1, 1, 1, 1)
+  local ecr, ecg, ecb, eca = unpack(SnapComboPointsDB.energyCountColor or {1, 1, 1, 1})
+  energyBar.countText:SetTextColor(ecr, ecg, ecb, eca or 1)
   energyBar.countText:SetShadowColor(unpack(SnapComboPointsDB.energyCountShadowColor))
   energyBar.countText:SetShadowOffset(SnapComboPointsDB.energyCountShadowOffset, -SnapComboPointsDB.energyCountShadowOffset)
 end
@@ -554,7 +570,9 @@ ApplyFrameSizeAndPosition = function()
 
   energyBorder:SetSize(width, energyHeight)
   energyBorder:ClearAllPoints()
-  energyBorder:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -SnapComboPointsDB.energyGap)
+  local energyGap = tonumber(SnapComboPointsDB.energyGap) or 0
+  local energyYOffset = tonumber(SnapComboPointsDB.energyYOffset) or 0
+  energyBorder:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -(energyGap + energyYOffset))
 
   local inset = tonumber(SnapComboPointsDB.energyBorderSize) or 0
   energyBar:ClearAllPoints()
@@ -662,6 +680,24 @@ UpdateComboDisplay = function()
   f:Show()
 end
 
+local function FormatShortNumber(value)
+  if type(issecretvalue) == "function" and issecretvalue(value) then
+    return ""
+  end
+  value = tonumber(value) or 0
+  if value >= 1000000 then
+    local v = value / 1000000
+    local text = string.format("%.1fm", v)
+    text = text:gsub("%.0m", "m")
+    return text
+  elseif value >= 1000 then
+    local v = math.floor((value / 1000) + 0.5)
+    return string.format("%dk", v)
+  end
+  return tostring(value)
+end
+
+
 -- Update energy bar visibility and values.
 UpdateEnergyDisplay = function()
   if not ShouldShow() then
@@ -669,9 +705,16 @@ UpdateEnergyDisplay = function()
     return
   end
 
+  if SnapComboPointsDB.energyEnabled == false then
+    energyBorder:Hide()
+    energyBar:Hide()
+    return
+  end
+
   local maxEnergy = UnitPowerMax("player", Enum.PowerType.Energy) or 0
   if maxEnergy <= 0 then
     energyBar:Hide()
+    energyBorder:Hide()
     return
   end
 
@@ -901,13 +944,6 @@ f:SetScript("OnEvent", function(self, event, ...)
 
       SnapComboPointsDB = CopyDefaults(AwangsRogueResourceBarDB, defaults)
       AwangsRogueResourceBarDB = SnapComboPointsDB
-
-      -- Force combo point colors to white (user request)
-      SnapComboPointsDB.color = {1, 1, 1, 1}
-      SnapComboPointsDB.charged = {1, 1, 1, 1}
-      SnapComboPointsDB.hideContainer = true
-      SnapComboPointsDB.hideEmpty = false
-      SnapComboPointsDB.pipBgColor = {0, 0, 0, 0.6}
 
       InitLSM()
 

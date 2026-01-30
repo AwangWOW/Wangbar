@@ -18,7 +18,6 @@ local borderColorOptions = {
   { key = "Orange", value = {1, 0.5, 0.1, 1} },
   { key = "Yellow", value = {1, 0.85, 0.2, 1} },
 }
-
 local borderColorValues = {}
 for i = 1, #borderColorOptions do
   borderColorValues[borderColorOptions[i].key] = borderColorOptions[i].key
@@ -122,6 +121,29 @@ local function SetFontByName(name)
     addon.UpdateComboDisplay()
   end
 end
+
+local function SetEnergyFontByName(name)
+  local db = GetDB()
+  if not SnapComboPointsDB then return end
+  if addon.InitLSM then
+    addon.InitLSM()
+  end
+  local lsm = addon.GetLSM and addon.GetLSM() or nil
+  if lsm and lsm.Fetch and name ~= "Default" then
+    db.energyCountFont = lsm:Fetch("font", name)
+    db.energyCountFontName = name
+  else
+    db.energyCountFont = db.energyCountFont or "Fonts\\FRIZQT__.TTF"
+    db.energyCountFontName = "Default"
+  end
+  if addon.ApplyFrameStyle then
+    addon.ApplyFrameStyle()
+  end
+  if addon.UpdateEnergyDisplay then
+    addon.UpdateEnergyDisplay()
+  end
+end
+
 
 local function GetStatusbarValues()
   if addon.GetStatusbarList then
@@ -271,10 +293,24 @@ local options = {
           name = "Energy Bar",
           order = 10,
         },
+        energyEnabled = {
+          type = "toggle",
+          name = "Enable energy bar",
+          order = 11,
+          get = function() return GetDB().energyEnabled ~= false end,
+          set = function(_, value)
+            if not SnapComboPointsDB then return end
+            SnapComboPointsDB.energyEnabled = value and true or false
+            if addon.ApplyFrameSizeAndPosition then
+              addon.ApplyFrameSizeAndPosition()
+            end
+            RefreshEnergy()
+          end,
+        },
         energyColor = {
           type = "color",
           name = "Energy bar color",
-          order = 11,
+          order = 12,
           hasAlpha = true,
           get = function()
             local r, g, b, a = unpack(GetDB().energyColor or {1, 1, 1, 1})
@@ -359,10 +395,35 @@ local options = {
                 RefreshCombo()
               end,
             },
+            pipBgOpacity = {
+              type = "range",
+              name = "Combo point background opacity",
+              order = 3,
+              min = 0,
+              max = 1,
+              step = 0.05,
+              get = function()
+                local color = GetDB().pipBgColor or {0, 0, 0, 0}
+                return color[4] or 0
+              end,
+              set = function(_, value)
+                if not SnapComboPointsDB then return end
+                local color = SnapComboPointsDB.pipBgColor or {0, 0, 0, 0}
+                SnapComboPointsDB.pipBgColor = { color[1] or 0, color[2] or 0, color[3] or 0, value }
+                if type(SnapComboPointsDB.emptyColor) == "table" then
+                  local er, eg, eb = SnapComboPointsDB.emptyColor[1], SnapComboPointsDB.emptyColor[2], SnapComboPointsDB.emptyColor[3]
+                  SnapComboPointsDB.emptyColor = { er or 0, eg or 0, eb or 0, value }
+                end
+                RefreshCombo()
+                if addon.ApplyFrameStyle then
+                  addon.ApplyFrameStyle()
+                end
+              end,
+            },
             energyBorder = {
               type = "select",
               name = "Energy border color",
-              order = 3,
+              order = 4,
               values = borderColorValues,
               get = function()
                 return FindBorderColorName(GetDB().energyBorder)
@@ -376,7 +437,7 @@ local options = {
             energyBorderSize = {
               type = "range",
               name = "Energy border size",
-              order = 4,
+              order = 5,
               min = 0,
               max = 10,
               step = 1,
@@ -491,7 +552,7 @@ local options = {
             },
             height = {
               type = "range",
-              name = "Height",
+              name = "Energy Height",
               order = 4,
               min = 1,
               max = 200,
@@ -505,7 +566,7 @@ local options = {
             },
             spacing = {
               type = "range",
-              name = "Spacing",
+              name = "Combo Point Spacing",
               order = 5,
               min = 0,
               max = 20,
@@ -531,17 +592,17 @@ local options = {
                 RefreshAll()
               end,
             },
-            energyGap = {
+            energyYOffset = {
               type = "range",
-              name = "Energy Gap",
+              name = "Energy Y Offset",
               order = 7,
-              min = 0,
-              max = 50,
+              min = -100,
+              max = 100,
               step = 1,
-              get = function() return GetDB().energyGap or 4 end,
+              get = function() return GetDB().energyYOffset or 0 end,
               set = function(_, value)
                 if not SnapComboPointsDB then return end
-                SnapComboPointsDB.energyGap = value
+                SnapComboPointsDB.energyYOffset = value
                 RefreshAll()
               end,
             },
@@ -612,6 +673,76 @@ local options = {
                 end
                 if addon.UpdateComboDisplay then
                   addon.UpdateComboDisplay()
+                end
+              end,
+            },
+          },
+        },
+        energyText = {
+          type = "group",
+          name = "Energy Text",
+          inline = true,
+          order = 3,
+          args = {
+            showEnergyCount = {
+              type = "toggle",
+              name = "Enable energy count",
+              order = 1,
+              get = function() return GetDB().showEnergyCount end,
+              set = function(_, value)
+                if not SnapComboPointsDB then return end
+                SnapComboPointsDB.showEnergyCount = value and true or false
+                if addon.UpdateEnergyDisplay then
+                  addon.UpdateEnergyDisplay()
+                end
+              end,
+            },
+            energyCountFontName = {
+              type = "select",
+              name = "Font",
+              order = 2,
+              values = GetFontList,
+              get = function() return GetDB().energyCountFontName or "Default" end,
+              set = function(_, value)
+                SetEnergyFontByName(value)
+              end,
+            },
+            energyCountFontSize = {
+              type = "range",
+              name = "Size",
+              order = 3,
+              min = 6,
+              max = 72,
+              step = 1,
+              get = function() return GetDB().energyCountFontSize or 12 end,
+              set = function(_, value)
+                if not SnapComboPointsDB then return end
+                SnapComboPointsDB.energyCountFontSize = value
+                if addon.ApplyFrameStyle then
+                  addon.ApplyFrameStyle()
+                end
+                if addon.UpdateEnergyDisplay then
+                  addon.UpdateEnergyDisplay()
+                end
+              end,
+            },
+            energyCountColor = {
+              type = "color",
+              name = "Text color",
+              order = 4,
+              hasAlpha = true,
+              get = function()
+                local r, g, b, a = unpack(GetDB().energyCountColor or {1, 1, 1, 1})
+                return r, g, b, a or 1
+              end,
+              set = function(_, r, g, b, a)
+                if not SnapComboPointsDB then return end
+                SnapComboPointsDB.energyCountColor = { r, g, b, a or 1 }
+                if addon.ApplyFrameStyle then
+                  addon.ApplyFrameStyle()
+                end
+                if addon.UpdateEnergyDisplay then
+                  addon.UpdateEnergyDisplay()
                 end
               end,
             },
