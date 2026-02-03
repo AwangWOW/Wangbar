@@ -1,5 +1,27 @@
 local _, addon = ...
 
+CLASSWITHSECONDARY = {
+  ["DEATHKNIGHT"] = true,
+  ["DRUID"] = true,
+  ["EVOKER"] = true,
+  ["MAGE"] = true,
+  ["MONK"] = true,
+  ["PALADIN"] = true,
+  ["PRIEST"] = true,
+  ["ROGUE"] = true,
+  ["SHAMAN"] = true,
+  ["WARLOCK"] = true,
+}
+SPECWITHSECONDARY = {
+  [268] = true,     -- Windwalker
+  [269] = true,     -- Brewmaster
+  [62] = true,      -- Arcane
+  [1480] = true,    -- Devourer
+  [262] = true,     -- Elemental
+  [263] = true,     -- Enhancement
+  [258] = true,     -- Shadow
+}
+
 -- Merge defaults into a table recursively.
 function addon.CopyDefaults(dst, src)
   if dst == nil then dst = {} end
@@ -14,37 +36,23 @@ function addon.CopyDefaults(dst, src)
   return dst
 end
 
--- Check if the player is a Rogue.
-function addon.IsRogue()
-  return select(2, UnitClass("player")) == "ROGUE"
-end
-
--- Check if the player is a Windwalker Monk.
-function addon.IsWindwalker()
-  if select(2, UnitClass("player")) ~= "MONK" then return false end
-  local spec = GetSpecialization()
-  if not spec then return false end
-  local _, _, _, _, _, _, specId = GetSpecializationInfo(spec)
-  return specId == 269
-end
-
--- Check if the player is a Feral Druid.
-function addon.IsFeral()
-  if select(2, UnitClass("player")) ~= "DRUID" then return false end
-  local spec = GetSpecialization()
-  if not spec then return false end
-  local _, _, _, _, _, _, specId = GetSpecializationInfo(spec)
-  return specId == 103
-end
-
--- Check if the player is an Enhancement Shaman.
-function addon.IsEnhancement()
-  if select(2, UnitClass("player")) ~= "SHAMAN" then return false end
-  local spec = GetSpecialization()
-  if not spec then return false end
-  local _, _, _, _, _, _, specId = GetSpecializationInfo(spec)
-  if specId == 263 then return true end
-  -- Fallback to name check (less robust across locales)
-  local name = select(2, GetSpecializationInfo(spec))
-  return name == "Enhancement"
+function addon.HasSecondaryPower()
+  local class = select(2, UnitClass("player"))
+  print(class)
+  if CLASSWITHSECONDARY[class] then
+    if class == "ROGUE" or class == "EVOKER" or class == "DEATH KNIGHT" or class == "WARLOCK" or class == "PALADIN" then
+      return true
+    end
+    local spec = GetSpecialization()
+    local specID = GetSpecializationInfo(spec)
+    if SPECWITHSECONDARY[specID] then
+      print(spec)
+      return true
+    elseif class == "DRUID" then
+      local form = GetShapeshiftFormID()
+      print(form)
+      if form == 1 then return true end
+    end
+  end
+  return false
 end

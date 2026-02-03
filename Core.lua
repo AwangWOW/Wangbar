@@ -624,11 +624,7 @@ end
 
 -- ---------- Utils ----------
 local CopyDefaults = addon.CopyDefaults
-local IsRogue = addon.IsRogue
-local IsWindwalker = addon.IsWindwalker
-local IsFeral = addon.IsFeral
-local IsEnhancement = addon.IsEnhancement
-
+local HasSecondary = addon.HasSecondaryPower()
 -- Check if the player uses Chi power.
 local function UsesChi()
   return (UnitPowerMax("player", Enum.PowerType.Chi) or 0) > 0
@@ -636,7 +632,7 @@ end
 
 -- Resolve the combo power type (Combo Points or Chi).
 local function GetComboPowerType()
-  if UsesChi() or (IsWindwalker and IsWindwalker()) then
+  if UsesChi() and HasSecondary then
     return Enum.PowerType.Chi, "CHI"
   end
   return Enum.PowerType.ComboPoints, "COMBO_POINTS"
@@ -656,7 +652,7 @@ end
 local function ShouldShow()
   if editModeActive then return true end
   if not SnapComboPointsDB.showOnlyWhenRelevant then return true end
-  return IsRogue() or UsesChi() or (IsWindwalker and IsWindwalker()) or (IsFeral and IsFeral()) or (IsEnhancement and IsEnhancement())
+  return HasSecondary
 end
 
 UpdateEditPanelFields = function()
@@ -1115,7 +1111,7 @@ UpdateEnergyDisplay = function()
   end
 
   local powerType = Enum.PowerType.Energy
-  if IsEnhancement and IsEnhancement() and Enum.PowerType and Enum.PowerType.Maelstrom then
+  if HasSecondary and Enum.PowerType and Enum.PowerType.Maelstrom then
     powerType = Enum.PowerType.Maelstrom
   end
 
@@ -1287,6 +1283,7 @@ f:SetScript("OnEvent", function(self, event, ...)
       self:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
       self:RegisterUnitEvent("UNIT_MAXPOWER", "player")
       self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+      self:RegisterEvent("UPDATE_SHAPESHIFT_COOLDOWN")
       self:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
       if C_EditMode and C_EditMode.IsEditModeActive then
         self:RegisterEvent("EDIT_MODE_ENTER")
@@ -1317,6 +1314,11 @@ f:SetScript("OnEvent", function(self, event, ...)
     SyncEditMode()
   elseif event == "EDIT_MODE_LAYOUTS_UPDATED" or event == "EDIT_MODE_ENTER" or event == "EDIT_MODE_EXIT" then
     SyncEditMode()
+  end
+
+  if event == "UPDATE_SHAPESHIFT_COOLDOWN" or event == "PLAYER_SPECIALIZATION_CHANGED" then
+    HasSecondary = addon.HasSecondaryPower()
+    UpdateComboDisplay()
   end
 
   if event == "UNIT_POWER_UPDATE" or event == "UNIT_POWER_FREQUENT" then
