@@ -84,6 +84,10 @@ local function GetCDMWidth()
     return nil, nil
   end
 
+  local function isUIParent(o)
+    return o == UIParent
+  end
+
   -- Candidate names: user-provided, standard, then ArcUI variations
   local userName = SnapComboPointsDB.autoSizeCDMName
   local standard = "EssentialCooldownViewer"
@@ -102,6 +106,9 @@ local function GetCDMWidth()
   if SnapComboPointsDB.autoSizeUseArcUI then
     local name, obj = findFirstExisting(arcCandidates)
     if name and obj then
+      if isUIParent(obj) then
+        return nil
+      end
       local ok, w = pcall(obj.GetWidth, obj)
       if ok and type(w) == "number" and w > 0 then
         -- cache discovered name
@@ -158,6 +165,9 @@ local function GetCDMWidth()
       end
 
       local candidate = findContainerCandidate(obj) or obj
+      if isUIParent(candidate) then
+        return nil
+      end
       -- cache the discovered (or container) name when possible
       if candidate and candidate.GetName and candidate:GetName() then
         SnapComboPointsDB.autoSizeCDMName = candidate:GetName()
@@ -174,6 +184,9 @@ local function GetCDMWidth()
     local candidates = { userName, standard }
     local name, obj = findFirstExisting(candidates)
     if name and obj then
+      if isUIParent(obj) then
+        return nil
+      end
       local ok, w = pcall(function() return obj:GetWidth() end)
       if ok and type(w) == "number" and w > 0 then
         return w
@@ -296,6 +309,15 @@ end
 local function ApplyWidthFromCDM(width)
   if not width then return end
   width = math.floor(width + 0.5)
+  -- Guard: avoid adopting a width larger than the UIParent (full-screen)
+  local okScreen, screenW = pcall(function() return UIParent and UIParent:GetWidth() end)
+  if okScreen and type(screenW) == "number" and screenW > 0 then
+    local margin = 50
+    if width >= screenW - margin then
+      -- Ignore widths that are essentially full-screen (likely from UIParent)
+      return
+    end
+  end
   if width < 1 then return end
   if lastAppliedWidth == width then return end
   SnapComboPointsDB.width = width

@@ -4,11 +4,11 @@ addon.defaults = {
   point = "CENTER",
   relPoint = "CENTER",
   x = 0,
-  y = -140,
-  width = 240,
+  y = -0,
+  width = 300,
   height = 14,
   spacing = 3,
-  energyHeight = 8,
+  energyHeight = 14,
   energyGap = 4,
   energyYOffset = 0,
   energyEnabled = true,
@@ -76,14 +76,14 @@ addon.defaults = {
   energyCountShadowOffset = 1,
 
   -- Conditional combo colors
-  highComboEnabled = true,
+  highComboEnabled = false,
   highComboPointsThreshold = 5,
   highComboColor = {1, 0.4, 0.4, 1},
 
   -- Auto-size to an external cooldown manager frame
-    autoSizeToCDM = true,
+    autoSizeToCDM = false,
   autoSizeCDMName = "EssentialCooldownViewer",
-  autoDetectCDM = true,
+  autoDetectCDM = false,
   autoSizeUseArcUI = false,
     anchorToCDM = false,
   autoSizeInterval = 0.25,
