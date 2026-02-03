@@ -38,7 +38,6 @@ end
 
 function addon.HasSecondaryPower()
   local class = select(2, UnitClass("player"))
-  print(class)
   if CLASSWITHSECONDARY[class] then
     if class == "ROGUE" or class == "EVOKER" or class == "DEATH KNIGHT" or class == "WARLOCK" or class == "PALADIN" then
       return true
@@ -46,11 +45,9 @@ function addon.HasSecondaryPower()
     local spec = GetSpecialization()
     local specID = GetSpecializationInfo(spec)
     if SPECWITHSECONDARY[specID] then
-      print(spec)
       return true
     elseif class == "DRUID" then
       local form = GetShapeshiftFormID()
-      print(form)
       if form == 1 then return true end
     end
   end
