@@ -13,14 +13,15 @@ CLASSWITHSECONDARY = {
   ["WARLOCK"] = true,
 }
 SPECWITHSECONDARY = {
-  [268] = true,     -- Windwalker
-  [269] = true,     -- Brewmaster
-  [62] = true,      -- Arcane
-  [1480] = true,    -- Devourer
-  [262] = true,     -- Elemental
-  [263] = true,     -- Enhancement
-  [258] = true,     -- Shadow
+  [268]   = true,     -- Brewmaster
+  [269]   = true,     -- Windwalker
+  [62]    = true,     -- Arcane
+  [1480]  = true,     -- Devourer
+  [262]   = true,     -- Elemental
+  [263]   = true,     -- Enhancement
+  [258]   = true,     -- Shadow
 }
+
 
 -- Merge defaults into a table recursively.
 function addon.CopyDefaults(dst, src)
@@ -39,7 +40,7 @@ end
 function addon.HasSecondaryPower()
   local class = select(2, UnitClass("player"))
   if CLASSWITHSECONDARY[class] then
-    if class == "ROGUE" or class == "EVOKER" or class == "DEATH KNIGHT" or class == "WARLOCK" or class == "PALADIN" then
+    if class == "ROGUE" or class == "EVOKER" or class == "DEATHKNIGHT" or class == "WARLOCK" or class == "PALADIN" then
       return true
     end
     local spec = GetSpecialization()
@@ -52,4 +53,4 @@ function addon.HasSecondaryPower()
     end
   end
   return false
-end
+end 

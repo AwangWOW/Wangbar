@@ -87,7 +87,7 @@ local function CreateEditModePanel()
   local function ApplyLayoutChange(rebuild)
     addon.ApplyFrameSizeAndPosition()
     if rebuild then
-      local comboPowerType = addon.GetComboPowerType()
+      local comboPowerType = addon.GetSecondaryType()
       addon.LayoutBars(UnitPowerMax("player", comboPowerType) or 0)
     end
     addon.ApplyFrameStyle()

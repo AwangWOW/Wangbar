@@ -325,10 +325,10 @@ local function ApplyWidthFromCDM(width)
   energyBorder:SetWidth(width)
   lastAppliedWidth = width
   local comboPowerType = nil
-  if addon.GetComboPowerType then
-    comboPowerType = addon.GetComboPowerType()
-  elseif GetComboPowerType then
-    comboPowerType = GetComboPowerType()
+  if addon.GetSecondaryType then
+    comboPowerType = addon.GetSecondaryType()
+  elseif GetSecondaryType then
+    comboPowerType = GetSecondaryType()
   end
   local maxPower = 0
   if comboPowerType then
@@ -647,22 +647,46 @@ end
 -- ---------- Utils ----------
 local CopyDefaults = addon.CopyDefaults
 local HasSecondary = addon.HasSecondaryPower()
--- Check if the player uses Chi power.
-local function UsesChi()
-  return (UnitPowerMax("player", Enum.PowerType.Chi) or 0) > 0
+
+-- Resolve the primary power type.
+local function GetPrimaryType()
+  local class = select(2, UnitClass("player"))
+  local spec = GetSpecialization()
+  local specID = GetSpecializationInfo(spec)
+
 end
 
--- Resolve the combo power type (Combo Points or Chi).
-local function GetComboPowerType()
-  if UsesChi() and HasSecondary then
-    return Enum.PowerType.Chi, "CHI"
+-- Resolve the secondary power type.
+local function GetSecondaryType()
+  local class = select(2, UnitClass("player"))
+  local spec = GetSpecialization()
+  local specID = GetSpecializationInfo(spec)
+  if HasSecondary or SPECWITHSECONDARY[specID] then
+    if class == "MONK" then
+      if specID == 269 then return Enum.PowerType.Chi, "CHI" end
+    elseif class == "ROGUE" then
+      return Enum.PowerType.ComboPoints, "COMBO_POINTS"
+    elseif class == "DRUID" then
+      local form = GetShapeshiftFormID()
+      if form == 1 then return Enum.PowerType.ComboPoints, "COMBO_POINTS" end
+    elseif class == "PALADIN" then
+      return Enum.PowerType.HolyPower, "HOLY_POWER"
+    elseif class == "WARLOCK" then
+      return Enum.PowerType.SoulShards, "SOUL_SHARDS"
+    elseif class == "MAGE" then
+      if specID == 62 then return Enum.PowerType.ArcaneCharges, "ARCANE_CHARGES" end
+    elseif class == "EVOKER" then
+      return Enum.PowerType.Essence, "ESSENCE"
+    elseif class == "DEATHKNIGHT" then
+      return Enum.PowerType.Runes, "RUNES"
+    elseif class == "SHAMAN" then
+      if specID == 263 then return Enum.PowerType.Maelstrom, "MAELSTROM" end
+    end
   end
-  return Enum.PowerType.ComboPoints, "COMBO_POINTS"
 end
-
 -- Get the current max combo points (fallback to 7).
 local function GetMaxComboPoints()
-  local powerType = GetComboPowerType()
+  local powerType = GetSecondaryType()
   local maxPower = UnitPowerMax("player", powerType) or 0
   if maxPower <= 0 then
     maxPower = 7
@@ -922,7 +946,7 @@ ApplyFrameSizeAndPosition = function()
   addon.InitLSM = InitLSM
   addon.GetLSM = function() return LSM end
 
-  addon.GetComboPowerType = GetComboPowerType
+  addon.GetSecondaryType = GetSecondaryType
   addon.InitMinimapButton = InitMinimapButton
   local width = tonumber(SnapComboPointsDB.width) or defaults.width
   local height = tonumber(SnapComboPointsDB.height) or defaults.height
@@ -999,7 +1023,7 @@ ApplyFrameSizeAndPosition = function()
   else
     StopAnchorFollower()
   end
-  local comboPowerType = GetComboPowerType()
+  local comboPowerType = GetSecondaryType()
   local maxPower = UnitPowerMax("player", comboPowerType) or 0
   if lastAppliedWidth ~= width and maxPower > 0 then
     lastAppliedWidth = width
@@ -1014,6 +1038,28 @@ CreateEditModePanel = function()
   end
 end
 
+local function StartRuneOnUpdate(runeBar, runeIndex)
+  runeBar.pip:SetScript("OnUpdate", function(self)
+    
+    local r, g, b, a = unpack(SnapComboPointsDB.color)
+    local runeStartTime, runeDuration, runeReady = GetRuneCooldown(runeIndex)
+    if runeReady then
+      runeBar.fill:SetScript("OnUpdate", nil)
+      runeBar.fill:SetValue(1)
+      runeBar.fill:SetStatusBarColor(r, g, b, a or 1)
+      return
+    end
+    if runeDuration and runeDuration > 0 then
+      local now = GetTime()
+      local elapsed = now - runeStartTime
+      local progress = math.min(1, elapsed / runeDuration)
+      runeBar.fill:SetValue(progress)
+      runeBar.fill:SetStatusBarColor(r*0.5, g*0.5, b*0.5, 1.0)
+    end
+  end)
+end
+
+
 -- Update combo point bar visibility and colors.
 UpdateComboDisplay = function()
   if not ShouldShow() then
@@ -1022,7 +1068,7 @@ UpdateComboDisplay = function()
     return
   end
 
-  local comboPowerType = GetComboPowerType()
+  local comboPowerType = GetSecondaryType()
   local current = UnitPower("player", comboPowerType) or 0
   local maxPower = UnitPowerMax("player", comboPowerType) or 0
 
@@ -1035,17 +1081,6 @@ UpdateComboDisplay = function()
     LayoutBars(maxPower)
   end
 
-  local charged
-  if comboPowerType == Enum.PowerType.ComboPoints then
-    charged = GetUnitChargedPowerPoints("player")
-  end
-  local chargedLookup = {}
-  if charged then
-    for _, idx in ipairs(charged) do
-      chargedLookup[idx] = true
-    end
-  end
-
   local cr, cg, cb, ca = unpack(SnapComboPointsDB.color)
   local xr, xg, xb, xa = unpack(SnapComboPointsDB.charged)
   local hr, hg, hb, ha = unpack(SnapComboPointsDB.highComboColor)
@@ -1055,50 +1090,95 @@ UpdateComboDisplay = function()
   local perPointColors = SnapComboPointsDB.perPointColors
 
   local er, eg, eb, ea = unpack(SnapComboPointsDB.emptyColor)
-
-  -- Snap updates: no smoothing, just 0/1 and show/hide
-  for i = 1, maxPower do
-    local b = bars[i]
-    if i <= current then
-      b.fill:SetValue(1)
-      if chargedLookup[i] then
-        b.fill:SetStatusBarColor(xr, xg, xb, xa or 1)
-      else
-        local pr, pg, pb, pa
-        if perPointEnabled and perPointColors and perPointColors[i] then
-          pr, pg, pb, pa = unpack(perPointColors[i])
-        end
-        if pr then
-          b.fill:SetStatusBarColor(pr, pg, pb, pa or 1)
-        elseif useHigh then
-          b.fill:SetStatusBarColor(hr, hg, hb, ha or 1)
-        else
-          b.fill:SetStatusBarColor(cr, cg, cb, ca or 1)
-        end
+  
+  if comboPowerType == Enum.PowerType.ComboPoints then
+    local charged
+    charged = GetUnitChargedPowerPoints("player")
+    local chargedLookup = {}
+    if charged then
+      for _, idx in ipairs(charged) do
+        chargedLookup[idx] = true
       end
-      b.pip:Show()
-    else
-      if SnapComboPointsDB.hideEmpty then
-        b.fill:SetValue(0)
-        b.pip:Hide()
-      else
+    end
+    -- Snap updates: no smoothing, just 0/1 and show/hide
+    for i = 1, maxPower do
+      local b = bars[i]
+      if i <= current then
         b.fill:SetValue(1)
-        b.fill:SetStatusBarColor(er, eg, eb, ea or 1)
+        if chargedLookup[i] then
+          b.fill:SetStatusBarColor(xr, xg, xb, xa or 1)
+        else
+          local pr, pg, pb, pa
+          if perPointEnabled and perPointColors and perPointColors[i] then
+            pr, pg, pb, pa = unpack(perPointColors[i])
+          end
+          if pr then
+            b.fill:SetStatusBarColor(pr, pg, pb, pa or 1)
+          elseif useHigh then
+            b.fill:SetStatusBarColor(hr, hg, hb, ha or 1)
+          else
+            b.fill:SetStatusBarColor(cr, cg, cb, ca or 1)
+          end
+        end
         b.pip:Show()
+      else
+        if SnapComboPointsDB.hideEmpty then
+          b.fill:SetValue(0)
+          b.pip:Hide()
+        else
+          b.fill:SetValue(1)
+          b.fill:SetStatusBarColor(er, eg, eb, ea or 1)
+          b.pip:Show()
+        end
       end
     end
-  end
 
-  if f.countText then
-    if SnapComboPointsDB.showCount then
-      f.countText:SetText(current)
-      f.countText:Show()
-    else
-      f.countText:Hide()
+    if f.countText then
+      if SnapComboPointsDB.showCount then
+        f.countText:SetText(current)
+        f.countText:Show()
+      else
+        f.countText:Hide()
+      end
     end
-  end
+  elseif comboPowerType == Enum.PowerType.Runes then
+    local runeReadyList = {}
+    local runeOnCDList = {}
+    for i = 1, maxPower do
+      local runeStartTime, runeDuration, runeReady = GetRuneCooldown(i)
+      if runeReady then
+        table.insert(runeReadyList, {index = i})
+      else
+        if runeStartTime and runeDuration and runeDuration > 0 then
+          local elapsed = GetTime() - runeStartTime
+          local remain = math.max(0, runeDuration - elapsed)
+          table.insert(runeOnCDList, {index = i, remaining = remain})
+        else
+          table.insert(runeOnCDList, {index = i, remaining = 999})
+        end
+      end
+    end
 
+    table.sort(runeOnCDList, function(a, b) return a.remaining < b.remaining end)
+
+    local order = {}
+    for _, v in ipairs(runeReadyList) do table.insert(order, v.index) end
+    for _, v in ipairs(runeOnCDList) do table.insert(order, v.index) end
+
+    for runePosition = 1, maxPower do
+      local i = order[runePosition]
+      local runeBar = bars[i]
+      local _, _, runeReady = GetRuneCooldown(i)
+      if runeReady then
+        runeBar.fill:SetValue(1)
+        runeBar.fill:SetStatusBarColor(cr, cg, cb, ca or 1)
+        runeBar.fill:SetScript("OnUpdate", nil)
+      else
+        StartRuneOnUpdate(runeBar, i)
+      end
+    end
   f:Show()
+  end
 end
 
 local function FormatShortNumber(value)
@@ -1132,10 +1212,12 @@ UpdateEnergyDisplay = function()
     return
   end
 
-  local powerType = Enum.PowerType.Energy
-  if HasSecondary and Enum.PowerType and Enum.PowerType.Maelstrom then
-    powerType = Enum.PowerType.Maelstrom
-  end
+  local powerType = UnitPowerType("player")
+  
+  -- Enum.PowerType.Energy
+  -- if HasSecondary and Enum.PowerType and Enum.PowerType.Maelstrom then
+  --   powerType = Enum.PowerType.Maelstrom
+  -- end
 
   local maxEnergy = UnitPowerMax("player", powerType) or 0
   if maxEnergy <= 0 then
@@ -1144,7 +1226,7 @@ UpdateEnergyDisplay = function()
     return
   end
 
-  local energy = UnitPower("player", powerType, true) or 0
+  local energy = UnitPower("player", powerType) or 0
   energyBar:SetMinMaxValues(0, maxEnergy)
   energyBar:SetValue(energy)
   local er, eg, eb, ea = unpack(SnapComboPointsDB.energyColor)
@@ -1168,7 +1250,7 @@ addon.ApplyFrameSizeAndPosition = ApplyFrameSizeAndPosition
 addon.LayoutBars = LayoutBars
 addon.InitLSM = InitLSM
 addon.GetLSM = function() return LSM end
-addon.GetComboPowerType = GetComboPowerType
+addon.GetSecondaryType = GetSecondaryType
 addon.GetMaxComboPoints = GetMaxComboPoints
 addon.InitMinimapButton = InitMinimapButton
 
@@ -1304,6 +1386,8 @@ f:SetScript("OnEvent", function(self, event, ...)
       self:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
       self:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
       self:RegisterUnitEvent("UNIT_MAXPOWER", "player")
+      self:RegisterEvent("RUNE_POWER_UPDATE")
+      self:RegisterEvent("RUNE_TYPE_UPDATE")
       self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
       self:RegisterEvent("UPDATE_SHAPESHIFT_COOLDOWN")
       self:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
@@ -1338,7 +1422,8 @@ f:SetScript("OnEvent", function(self, event, ...)
     SyncEditMode()
   end
 
-  if event == "UPDATE_SHAPESHIFT_COOLDOWN" or event == "PLAYER_SPECIALIZATION_CHANGED" then
+  if event == "UPDATE_SHAPESHIFT_COOLDOWN" or event == "PLAYER_SPECIALIZATION_CHANGED"
+  or event == "RUNE_POWER_UPDATE" or event == "RUNE_TYPE_UPDATE" then
     HasSecondary = addon.HasSecondaryPower()
     UpdateComboDisplay()
   end
@@ -1347,10 +1432,10 @@ f:SetScript("OnEvent", function(self, event, ...)
     local unit, powerType = ...
     if unit ~= "player" then return end
     -- Only redraw for combo points for performance + snappiness
-    local _, comboPowerToken = GetComboPowerType()
+    local _, comboPowerToken = GetSecondaryType()
     if powerType == comboPowerToken then
       UpdateComboDisplay()
-    elseif powerType == "ENERGY" then
+    elseif powerType then
       UpdateEnergyDisplay()
     end
     return
