@@ -709,6 +709,8 @@ local options = {
               set = function(_, value)
                 if not SnapComboPointsDB then return end
                 SnapComboPointsDB.autoSizeToCDM = value and true or false
+                -- clear any cached CDM name when toggling autosize to avoid stale references
+                SnapComboPointsDB.autoSizeCDMName = ""
                 if addon.ApplyFrameSizeAndPosition then
                   addon.ApplyFrameSizeAndPosition()
                 end
@@ -742,6 +744,8 @@ local options = {
               set = function(_, value)
                 if not SnapComboPointsDB then return end
                 SnapComboPointsDB.autoDetectCDM = value and true or false
+                -- clear cached candidate to force fresh detection
+                SnapComboPointsDB.autoSizeCDMName = ""
                 if addon.ApplyFrameSizeAndPosition then
                   addon.ApplyFrameSizeAndPosition()
                 end
@@ -756,6 +760,8 @@ local options = {
               set = function(_, value)
                 if not SnapComboPointsDB then return end
                 SnapComboPointsDB.autoSizeUseArcUI = value and true or false
+                -- clear cached candidate when changing ArcUI preference
+                SnapComboPointsDB.autoSizeCDMName = ""
                 if addon.ApplyFrameSizeAndPosition then
                   addon.ApplyFrameSizeAndPosition()
                 end
