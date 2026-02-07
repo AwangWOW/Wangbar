@@ -22,6 +22,7 @@ local unlocked = false
 local editModeActive = false
 local editModeHooked = false
 local debugPanelVisible = false
+local InCombatLockdown = _G.InCombatLockdown
 local UpdateComboDisplay
 local UpdateEnergyDisplay
 local InitLSM
@@ -655,6 +656,7 @@ end
 -- Determine whether the bars should be visible.
 local function ShouldShow()
   if editModeActive then return true end
+  if SnapComboPointsDB.hideOutOfCombat and InCombatLockdown and not InCombatLockdown() then return false end
   if not SnapComboPointsDB.showOnlyWhenRelevant then return true end
   return IsRogue() or UsesChi() or (IsWindwalker and IsWindwalker()) or (IsFeral and IsFeral()) or (IsEnhancement and IsEnhancement())
 end
@@ -998,7 +1000,7 @@ end
 
 -- Update combo point bar visibility and colors.
 UpdateComboDisplay = function()
-  if not ShouldShow() then
+  if not ShouldShow() then  
     f:Hide()
     energyBorder:Hide()
     return
@@ -1210,6 +1212,7 @@ local function IsEditModeActive()
   return false
 end
 
+
 -- Sync addon state with edit mode state.
 local function SyncEditMode()
   local active = IsEditModeActive()
@@ -1283,6 +1286,8 @@ f:SetScript("OnEvent", function(self, event, ...)
 
       -- Register events after init
       self:RegisterEvent("PLAYER_ENTERING_WORLD")
+      self:RegisterEvent("PLAYER_REGEN_ENABLED")
+      self:RegisterEvent("PLAYER_REGEN_DISABLED")
       self:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
       self:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
       self:RegisterUnitEvent("UNIT_MAXPOWER", "player")
