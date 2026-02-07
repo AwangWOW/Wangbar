@@ -678,6 +678,7 @@ end
 -- Determine whether the bars should be visible.
 local function ShouldShow()
   if editModeActive then return true end
+  if SnapComboPointsDB.hideWhileMounted then if IsMounted() then return false end end
   if SnapComboPointsDB.hideOutOfCombat and InCombatLockdown and not InCombatLockdown() then return false end
   if not SnapComboPointsDB.showOnlyWhenRelevant then return true end
   return IsRogue() or UsesChi() or (IsWindwalker and IsWindwalker()) or (IsFeral and IsFeral()) or (IsEnhancement and IsEnhancement())
