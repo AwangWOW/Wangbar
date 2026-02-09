@@ -927,6 +927,40 @@ local options = {
         },
       },
     },
+    global = {
+      type = "group",
+      name = "Behaviors",
+      order = 4,
+      args = {
+        behaviorsHeader = {
+          type = "header",
+          name = "Behaviors",
+          order = 1,
+        },
+        hideOutOfCombat = {
+          type = "toggle",
+          name = "Hide bars out of combat",
+          order = 2,
+          get = function() return GetDB().hideOutOfCombat end,
+          set = function(_, value)
+            if not SnapComboPointsDB then return end
+            SnapComboPointsDB.hideOutOfCombat = value or false and true
+            RefreshCombo()
+          end,
+        },        
+        hideWhileMounted = {
+          type = "toggle",
+          name = "Hide bars while mounted",
+          order = 3,
+          get = function() return GetDB().hideWhileMounted end,
+          set = function(_, value)
+            if not SnapComboPointsDB then return end
+            SnapComboPointsDB.hideWhileMounted = value or false and true
+            RefreshCombo()
+          end,
+        },
+      }
+    }
   },
 }
 
