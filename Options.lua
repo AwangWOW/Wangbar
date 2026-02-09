@@ -60,6 +60,9 @@ local function RefreshCombo()
   if addon.UpdateComboDisplay then
     addon.UpdateComboDisplay()
   end
+  if addon.UpdateEnergyDisplay then
+    addon.UpdateEnergyDisplay()
+  end
 end
 
 local function RefreshEnergy()
