@@ -5,8 +5,8 @@ local ADDON_PREFIX = "|cff00ff88Wangbar|r"
 addon.ADDON_TITLE = ADDON_TITLE
 local f = CreateFrame("Frame", "SnapComboPointsFrame", UIParent, "BackdropTemplate")
 local energyBorder = CreateFrame("Frame", "SnapEnergyBorder", UIParent, "BackdropTemplate")
-local energyBar = CreateFrame("StatusBar", "SnapEnergyBar", energyBorder)
 local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+local energyBar = CreateFrame(LSM.MediaType.STATUSBAR, "SnapEnergyBar", energyBorder)
 
 addon.frames = {
   comboFrame = f,
@@ -715,7 +715,7 @@ local function LayoutBars(maxPower)
 
   for i = 1, maxPower do
     -- Outer frame = border + background
-    local pip = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    local pip = CreateFrame(LSM.MediaType.STATUSBAR, nil, f, "BackdropTemplate")
     local pipBackdrop = { bgFile = "Interface\\Buttons\\WHITE8x8" }
     local pipEdgeSize = tonumber(SnapComboPointsDB.pipBorderSize) or 0
     if pipEdgeSize > 0 then
@@ -740,10 +740,10 @@ local function LayoutBars(maxPower)
     end
 
     -- Inner statusbar = fill
-    local fill = CreateFrame("StatusBar", nil, pip)
+    local fill = CreateFrame(LSM.MediaType.STATUSBAR, nil, pip)
     fill:SetStatusBarTexture(SnapComboPointsDB.texture)
     fill:SetMinMaxValues(0, 1)
-    fill:SetValue(0)
+    fill:SetValue(0, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)
     fill:SetAllPoints(pip)
 
     local shadow = pip:CreateTexture(nil, "BACKGROUND")
@@ -1030,7 +1030,7 @@ UpdateComboDisplay = function()
   end
 
   local comboPowerType = GetComboPowerType()
-  local current = UnitPower("player", comboPowerType) or 0
+  local current = UnitPower("player", comboPowerType)
   local maxPower = UnitPowerMax("player", comboPowerType) or 0
 
   if maxPower <= 0 then
@@ -1063,36 +1063,40 @@ UpdateComboDisplay = function()
 
   local er, eg, eb, ea = unpack(SnapComboPointsDB.emptyColor)
 
-  -- Snap updates: no smoothing, just 0/1 and show/hide
   for i = 1, maxPower do
     local b = bars[i]
-    if i <= current then
-      b.fill:SetValue(1)
-      if chargedLookup[i] then
+    if chargedLookup[i] then
+      b.fill:SetValue(1, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)
+      if i <= current then
         b.fill:SetStatusBarColor(xr, xg, xb, xa or 1)
       else
-        local pr, pg, pb, pa
-        if perPointEnabled and perPointColors and perPointColors[i] then
-          pr, pg, pb, pa = unpack(perPointColors[i])
-        end
+        b.fill:SetStatusBarColor(xr * 0.5, xg * 0.5, xb * 0.5, xa or 1)
+      end
+    else
+      local pr, pg, pb, pa
+      if perPointEnabled and perPointColors and perPointColors[i] then
+        pr, pg, pb, pa = unpack(perPointColors[i])
+      end
+      if i <= current then
         if pr then
+          b.fill:SetValue(1, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)
           b.fill:SetStatusBarColor(pr, pg, pb, pa or 1)
         elseif useHigh then
+          b.fill:SetValue(1, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)
           b.fill:SetStatusBarColor(hr, hg, hb, ha or 1)
         else
+          b.fill:SetValue(1, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)
           b.fill:SetStatusBarColor(cr, cg, cb, ca or 1)
         end
-      end
-      b.pip:Show()
-    else
-      if SnapComboPointsDB.hideEmpty then
-        b.fill:SetValue(0)
-        b.pip:Hide()
       else
-        b.fill:SetValue(1)
-        b.fill:SetStatusBarColor(er, eg, eb, ea or 1)
-        b.pip:Show()
+        b.fill:SetValue(0, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)  
+        b.fill:SetStatusBarColor(cr*0.5, cg*0.5, cb*0.5, ca or 1)
       end
+    end
+    if SnapComboPointsDB.hideEmpty then
+      b.pip:Hide()
+    else
+      b.pip:Show()
     end
   end
 
@@ -1152,8 +1156,8 @@ UpdateEnergyDisplay = function()
   end
 
   local energy = UnitPower("player", powerType, true) or 0
-  energyBar:SetMinMaxValues(0, maxEnergy)
-  energyBar:SetValue(energy)
+  energyBar:SetMinMaxValues(0, maxEnergy, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)
+  energyBar:SetValue(energy, SnapComboPointsDB.smoothProgress and Enum.StatusBarInterpolation.ExponentialEaseOut or nil)
   local er, eg, eb, ea = unpack(SnapComboPointsDB.energyColor)
   energyBar:SetStatusBarColor(er, eg, eb, ea or 1)
   if energyBar.countText then

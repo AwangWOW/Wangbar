@@ -962,6 +962,17 @@ local options = {
             RefreshCombo()
           end,
         },
+        smoothProgress = {
+          type = "toggle",
+          name = "Smooth update progress",
+          order = 4,
+          get = function() return GetDB().smoothProgress end,
+          set = function(_, value)
+            if not SnapComboPointsDB then return end
+            SnapComboPointsDB.smoothProgress = value or false and true
+            RefreshCombo()
+          end,
+        },
       }
     }
   },
