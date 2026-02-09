@@ -53,8 +53,8 @@ local function GetBorderColorValue(name)
 end
 
 local function RefreshCombo()
-  if addon.LayoutBars and addon.GetComboPowerType then
-    local comboPowerType = addon.GetComboPowerType()
+  if addon.LayoutBars then
+    local comboPowerType = addon.GetSecondaryType()
     addon.LayoutBars(UnitPowerMax("player", comboPowerType) or 0)
   end
   if addon.UpdateComboDisplay then
