@@ -36,6 +36,7 @@ local ApplyFrameSizeAndPosition
 -- Autosize watcher for external cooldown manager (e.g. EssentialCooldownViewer)
 local autosizeWatcher = nil
 local autosizeAccum = 0
+local autosizeRetryToken = 0
 local anchorFollower = nil
 local anchorAccum = 0
 local cdmSizeTarget = nil
@@ -105,16 +106,15 @@ local function GetCDMWidth()
 
   -- If user explicitly asked to use ArcUI, check those first
   if SnapComboPointsDB.autoSizeUseArcUI then
-    local name, obj = findFirstExisting(arcCandidates)
-    if name and obj then
-      if isUIParent(obj) then
-        return nil
-      end
-      local ok, w = pcall(obj.GetWidth, obj)
-      if ok and type(w) == "number" and w > 0 then
-        -- cache discovered name
-        SnapComboPointsDB.autoSizeCDMName = name
-        return w
+    for i = 1, #arcCandidates do
+      local name, obj = findFirstExisting({ arcCandidates[i] })
+      if name and obj and not isUIParent(obj) then
+        local ok, w = pcall(obj.GetWidth, obj)
+        if ok and type(w) == "number" and w > 0 then
+          -- cache discovered name
+          SnapComboPointsDB.autoSizeCDMName = name
+          return w
+        end
       end
     end
     -- fallback to configured or standard
@@ -126,71 +126,71 @@ local function GetCDMWidth()
     if userName and userName ~= "" then table.insert(candidates, userName) end
     table.insert(candidates, standard)
     for i = 1, #arcCandidates do table.insert(candidates, arcCandidates[i]) end
-    local name, obj = findFirstExisting(candidates)
-    if name and obj then
-      -- If the detected object looks like a single icon, try to prefer a container/parent
-      local function findContainerCandidate(o)
-        if not o then return o end
-        -- prefer frames with multiple children (safe calls)
-        if type(o.GetNumChildren) == "function" then
-          local ok, n = pcall(o.GetNumChildren, o)
-          if ok and type(n) == "number" and n > 1 then
-            return o
-          end
+    -- If the detected object looks like a single icon, try to prefer a container/parent
+    local function findContainerCandidate(o)
+      if not o then return o end
+      -- prefer frames with multiple children (safe calls)
+      if type(o.GetNumChildren) == "function" then
+        local ok, n = pcall(o.GetNumChildren, o)
+        if ok and type(n) == "number" and n > 1 then
+          return o
         end
-        -- climb up a few levels looking for a parent container
-        local current = o
-        for i = 1, 4 do
-          if type(current.GetParent) == "function" then
-            current = current:GetParent()
-            if not current then break end
-            if type(current.GetNumChildren) == "function" then
-              local okc, nc = pcall(current.GetNumChildren, current)
-              if okc and type(nc) == "number" and nc > 1 then
-                return current
-              end
-            end
-            -- also prefer a parent with a larger width
-            if type(current.GetWidth) == "function" and type(o.GetWidth) == "function" then
-              local okc, wc = pcall(current.GetWidth, current)
-              local oko, wo = pcall(o.GetWidth, o)
-              if okc and oko and type(wc) == "number" and type(wo) == "number" and wc > wo then
-                return current
-              end
-            end
-          else
-            break
-          end
-        end
-        return o
       end
+      -- climb up a few levels looking for a parent container
+      local current = o
+      for i = 1, 4 do
+        if type(current.GetParent) == "function" then
+          current = current:GetParent()
+          if not current then break end
+          if type(current.GetNumChildren) == "function" then
+            local okc, nc = pcall(current.GetNumChildren, current)
+            if okc and type(nc) == "number" and nc > 1 then
+              return current
+            end
+          end
+          -- also prefer a parent with a larger width
+          if type(current.GetWidth) == "function" and type(o.GetWidth) == "function" then
+            local okc, wc = pcall(current.GetWidth, current)
+            local oko, wo = pcall(o.GetWidth, o)
+            if okc and oko and type(wc) == "number" and type(wo) == "number" and wc > wo then
+              return current
+            end
+          end
+        else
+          break
+        end
+      end
+      return o
+    end
 
-      local candidate = findContainerCandidate(obj) or obj
-      if isUIParent(candidate) then
-        return nil
-      end
-      -- cache the discovered (or container) name when possible
-      if candidate and candidate.GetName and candidate:GetName() then
-        SnapComboPointsDB.autoSizeCDMName = candidate:GetName()
-      else
-        SnapComboPointsDB.autoSizeCDMName = name
-      end
-      local ok, w = pcall(function() return candidate:GetWidth() end)
-      if ok and type(w) == "number" and w > 0 then
-        return w
+    for i = 1, #candidates do
+      local name, obj = findFirstExisting({ candidates[i] })
+      if name and obj then
+        local candidate = findContainerCandidate(obj) or obj
+        if not isUIParent(candidate) then
+          local ok, w = pcall(function() return candidate:GetWidth() end)
+          if ok and type(w) == "number" and w > 0 then
+            -- cache the discovered (or container) name when possible
+            if candidate and candidate.GetName and candidate:GetName() then
+              SnapComboPointsDB.autoSizeCDMName = candidate:GetName()
+            else
+              SnapComboPointsDB.autoSizeCDMName = name
+            end
+            return w
+          end
+        end
       end
     end
   else
     -- auto-detect disabled: use user-configured name then standard
     local candidates = { userName, standard }
-    local name, obj = findFirstExisting(candidates)
-    if name and obj then
-      if isUIParent(obj) then
-        return nil
-      end
-      local ok, w = pcall(function() return obj:GetWidth() end)
-      if ok and type(w) == "number" and w > 0 then
-        return w
+    for i = 1, #candidates do
+      local name, obj = findFirstExisting({ candidates[i] })
+      if name and obj and not isUIParent(obj) then
+        local ok, w = pcall(function() return obj:GetWidth() end)
+        if ok and type(w) == "number" and w > 0 then
+          return w
+        end
       end
     end
   end
@@ -322,6 +322,7 @@ local function ApplyWidthFromCDM(width)
   if width < 1 then return end
   if lastAppliedWidth == width then return end
   SnapComboPointsDB.width = width
+  SnapComboPointsDB.lastAutoSizedWidth = width
   f:SetWidth(width)
   energyBorder:SetWidth(width)
   lastAppliedWidth = width
@@ -342,6 +343,42 @@ local function ApplyWidthFromCDM(width)
       LayoutBars(maxPower)
     end
   end
+end
+
+local function TryAutoSizeNow(forceRedetect)
+  if not (SnapComboPointsDB and SnapComboPointsDB.autoSizeToCDM) then return false end
+  if forceRedetect then
+    SnapComboPointsDB.autoSizeCDMName = ""
+  end
+  local w = GetCDMWidth()
+  if w and w > 0 then
+    ApplyWidthFromCDM(w)
+    return true
+  end
+  return false
+end
+
+local function ScheduleAutoSizeRetries()
+  if not (C_Timer and C_Timer.After) then return end
+  autosizeRetryToken = autosizeRetryToken + 1
+  local token = autosizeRetryToken
+  local attempts = 12
+  local interval = tonumber(SnapComboPointsDB and SnapComboPointsDB.autoSizeInterval) or 0.25
+  if interval < 0.05 then interval = 0.05 end
+
+  local function Attempt()
+    if token ~= autosizeRetryToken then return end
+    if not (SnapComboPointsDB and SnapComboPointsDB.autoSizeToCDM) then return end
+    local forceRedetect = (attempts % 3) == 0
+    if TryAutoSizeNow(forceRedetect) then
+      return
+    end
+    attempts = attempts - 1
+    if attempts <= 0 then return end
+    C_Timer.After(interval, Attempt)
+  end
+
+  C_Timer.After(0, Attempt)
 end
 
 local function StartAutoSizeWatcher()
@@ -996,8 +1033,15 @@ ApplyFrameSizeAndPosition = function()
     local w = GetCDMWidth()
     if w then
       ApplyWidthFromCDM(w)
+    else
+      local cachedW = tonumber(SnapComboPointsDB.lastAutoSizedWidth)
+      if cachedW and cachedW > 0 then
+        ApplyWidthFromCDM(cachedW)
+      end
     end
+    ScheduleAutoSizeRetries()
   else
+    autosizeRetryToken = autosizeRetryToken + 1
     StopAutoSizeWatcher()
   end
   -- Start/stop anchor follower if configured
@@ -1008,8 +1052,9 @@ ApplyFrameSizeAndPosition = function()
   end
   local comboPowerType = GetComboPowerType()
   local maxPower = UnitPowerMax("player", comboPowerType) or 0
-  if lastAppliedWidth ~= width and maxPower > 0 then
-    lastAppliedWidth = width
+  local effectiveWidth = tonumber(SnapComboPointsDB.width) or width
+  if lastAppliedWidth ~= effectiveWidth and maxPower > 0 then
+    lastAppliedWidth = effectiveWidth
     LayoutBars(maxPower)
   end
 end
@@ -1083,14 +1128,20 @@ UpdateComboDisplay = function()
           b.fill:SetStatusBarColor(cr, cg, cb, ca or 1)
         end
       end
+      b.pip:SetBackdropBorderColor(unpack(SnapComboPointsDB.pipBorderColor))
       b.pip:Show()
     else
-      if SnapComboPointsDB.hideEmpty then
+      if chargedLookup[i] then
+        b.fill:SetValue(0)
+        b.pip:SetBackdropBorderColor(xr, xg, xb, xa or 1)
+        b.pip:Show()
+      elseif SnapComboPointsDB.hideEmpty then
         b.fill:SetValue(0)
         b.pip:Hide()
       else
         b.fill:SetValue(1)
         b.fill:SetStatusBarColor(er, eg, eb, ea or 1)
+        b.pip:SetBackdropBorderColor(unpack(SnapComboPointsDB.pipBorderColor))
         b.pip:Show()
       end
     end
@@ -1313,6 +1364,7 @@ f:SetScript("OnEvent", function(self, event, ...)
       self:RegisterEvent("PLAYER_REGEN_DISABLED")
       self:RegisterUnitEvent("UNIT_POWER_UPDATE", "player")
       self:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
+      self:RegisterUnitEvent("UNIT_POWER_POINT_CHARGE", "player")
       self:RegisterUnitEvent("UNIT_MAXPOWER", "player")
       self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
       self:RegisterEvent("EDIT_MODE_LAYOUTS_UPDATED")
@@ -1341,6 +1393,12 @@ f:SetScript("OnEvent", function(self, event, ...)
     if not minimapInitialized then
       C_Timer.After(0, InitMinimapButton)
     end
+    if SnapComboPointsDB and SnapComboPointsDB.autoSizeToCDM and C_Timer and C_Timer.After then
+      C_Timer.After(0, function() TryAutoSizeNow(true) end)
+      C_Timer.After(0.5, function() TryAutoSizeNow(true) end)
+      C_Timer.After(1.5, function() TryAutoSizeNow(true) end)
+      C_Timer.After(3, function() TryAutoSizeNow(true) end)
+    end
     HookEditModeManager()
     SyncEditMode()
   elseif event == "EDIT_MODE_LAYOUTS_UPDATED" or event == "EDIT_MODE_ENTER" or event == "EDIT_MODE_EXIT" then
@@ -1357,6 +1415,13 @@ f:SetScript("OnEvent", function(self, event, ...)
     elseif powerType == "ENERGY" then
       UpdateEnergyDisplay()
     end
+    return
+  end
+
+  if event == "UNIT_POWER_POINT_CHARGE" then
+    local unit = ...
+    if unit ~= "player" then return end
+    UpdateComboDisplay()
     return
   end
 
