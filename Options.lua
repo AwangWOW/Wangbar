@@ -719,6 +719,12 @@ local options = {
                 end
               end,
             },
+            autoSizeTroubleshoot = {
+              type = "description",
+              name = "If sizing looks weird, try turning Auto-size off and back on. This usually refreshes detection.",
+              order = 9.1,
+              width = "full",
+            },
             anchorToCDM = {
               type = "toggle",
               name = "Anchor to Cooldown Manager",
